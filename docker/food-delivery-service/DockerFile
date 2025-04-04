@@ -1,0 +1,25 @@
+
+FROM node:19-alpine AS builder
+WORKDIR /app
+
+COPY package*.json ./
+COPY apps/food-delivery-service/package*.json ./apps/food-delivery-service/
+
+RUN npm ci --workspace=apps/food-delivery-service
+
+COPY . .
+
+RUN npm run build:gateway
+
+
+FROM node:19-alpine
+WORKDIR /app
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist/apps/food-delivery-service ./dist
+
+ENV NODE_ENV production
+ENV PORT 3000
+
+EXPOSE 3000
+CMD ["node", "dist/main"]

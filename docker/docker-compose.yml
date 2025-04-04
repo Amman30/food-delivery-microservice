@@ -77,6 +77,7 @@ services:
       - kafka
     networks:
       - foodnet
+  
 
   delivery-service:
     build: ./docker/delivery-service
