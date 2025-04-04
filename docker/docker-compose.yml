@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - foodnet
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports:
+      - "9092:9092"
+    networks:
+      - foodnet
+
+  postgres:
+    image: postgres:14-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - foodnet
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    networks:
+      - foodnet
+
+
+  user-service:
+    build: ./docker/user-service
+    ports:
+      - "3001:3001"
+    env_file:
+      - ../.env
+    environment:
+      KAFKA_BROKER: kafka:9092
+    depends_on:
+      - postgres
+      - redis
+      - kafka
+    networks:
+      - foodnet
+
+  restaurant-service:
+    build: ./docker/restaurant-service
+    ports:
+      - "3002:3002"
+    env_file:
+      - ../.env
+    environment:
+      KAFKA_BROKER: kafka:9092
+    depends_on:
+      - postgres
+      - kafka
+    networks:
+      - foodnet
+
+  delivery-service:
+    build: ./docker/delivery-service
+    ports:
+      - "3003:3003"
+    env_file:
+      - ../.env
+    environment:
+      KAFKA_BROKER: kafka:9092
+    depends_on:
+      - postgres
+      - kafka
+    networks:
+      - foodnet
+
+  food-delivery-service:
+    build: ./docker/food-delivery-service
+    ports:
+      - "3000:3000"
+    env_file:
+     - ../.env
+    environment:
+      KAFKA_BROKER: kafka:9092
+    depends_on:
+      - user-service
+      - restaurant-service
+      - delivery-service
+      - kafka
+    networks:
+      - foodnet
+
+volumes:
+  pgdata:
+  redisdata:
+  kafka-data:
+
+networks:
+  foodnet:
+    driver: bridge
